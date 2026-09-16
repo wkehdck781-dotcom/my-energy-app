@@ -21,53 +21,51 @@ from reportlab.platypus import (
 
 
 # =========================================================
-# 1. 폰트 및 서버 환경 대응 설정 (한글 깨짐 방지)
+# 1. 멀티 폰트 및 서버 환경 대응 설정 (한글 깨짐 원천 차단)
 # =========================================================
 def setup_fonts():
-    # 1. 로컬에 폰트 파일이 있는 경우 우선 등록 시도
-    font_path = os.path.join(os.path.dirname(__file__), "fonts", "NanumGothic.ttf")
-    if os.path.exists(font_path):
-        try:
-            fm.fontManager.addfont(font_path)
-            font_name = fm.FontProperties(fname=font_path).get_name()
-            plt.rc("font", family=font_name)
-            plt.rc("axes", unicode_minus=False)
-            pdfmetrics.registerFont(TTFont("ReportFont", font_path))
-            return "ReportFont"
-        except Exception:
-            pass
-
-    # 2. 리눅스 서버(깃허브 등) 환경에서 시스템 나눔고딕 탐색 및 강제 지정
-    if os.name == "posix":
-        for candidate in ["NanumGothic", "Nanum Gothic", "DejaVu Sans"]:
+    font_dir = os.path.join(os.path.dirname(__file__), "fonts")
+    
+    # 1. 맷플롯립(Matplotlib)에 3가지 폰트 전부 등록
+    for fname in ["NanumGothic.ttf", "NanumGothicBold.ttf", "NanumGothicExtraBold.ttf"]:
+        fpath = os.path.join(font_dir, fname)
+        if os.path.exists(fpath):
             try:
-                plt.rcParams["font.family"] = candidate
-                break
+                fm.fontManager.addfont(fpath)
             except Exception:
                 pass
-    else:
-        plt.rcParams["font.family"] = "Malgun Gothic"
 
+    # Matplotlib 기본 폰트를 나눔고딕으로 강제 지정
+    plt.rcParams["font.family"] = "NanumGothic"
     plt.rcParams["axes.unicode_minus"] = False
 
-    # 3. ReportLab PDF용 폰트 설정
-    installed = {font.name: font.fname for font in fm.fontManager.ttflist}
-    selected_path = None
-    for candidate in ("NanumGothic", "Nanum Gothic", "Malgun Gothic", "AppleGothic", "DejaVu Sans"):
-        if candidate in installed:
-            selected_path = installed[candidate]
-            break
-
-    if selected_path and selected_path.lower().endswith((".ttf", ".ttc")):
+    # 2. 리포트랩(PDF)용 폰트 등록 (Regular와 Bold 분리 등록)
+    reg_path = os.path.join(font_dir, "NanumGothic.ttf")
+    bold_path = os.path.join(font_dir, "NanumGothicBold.ttf")
+    
+    if os.path.exists(reg_path):
         try:
-            pdfmetrics.registerFont(TTFont("ReportFont", selected_path))
-            return "ReportFont"
+            pdfmetrics.registerFont(TTFont("NanumGothic", reg_path))
         except Exception:
             pass
-    return "Helvetica"
+            
+    if os.path.exists(bold_path):
+        try:
+            pdfmetrics.registerFont(TTFont("NanumGothic-Bold", bold_path))
+        except Exception:
+            # 볼드 파일이 없으면 레귤러로 대체
+            pdfmetrics.registerFont(TTFont("NanumGothic-Bold", reg_path))
+    else:
+        try:
+            pdfmetrics.registerFont(TTFont("NanumGothic-Bold", reg_path))
+        except Exception:
+            pass
+
+    # 등록된 폰트 이름 반환
+    return "NanumGothic", "NanumGothic-Bold"
 
 
-PDF_FONT = setup_fonts()
+PDF_FONT, PDF_FONT_BOLD = setup_fonts()
 
 COLOR_INK = "#172033"
 COLOR_MUTED = "#6B7280"
@@ -86,7 +84,7 @@ st.markdown(
     f"""
     <style>
     html, body, [class*="css"] {{
-        font-family: "Malgun Gothic", "NanumGothic", sans-serif;
+        font-family: "NanumGothic", "Malgun Gothic", sans-serif;
     }}
     .app-title {{
         font-size: 26px; font-weight: 750; color: {COLOR_INK}; margin-bottom: 4px;
@@ -237,6 +235,10 @@ def fmt(value, digits=1):
 
 
 def generate_figure(pump_kw, flow_pct, mode, nameplate_efficiency_pct, result):
+    # 명시적으로 나눔고딕 폰트 지정
+    plt.rcParams["font.family"] = "NanumGothic"
+    plt.rcParams["axes.unicode_minus"] = False
+
     flows = np.linspace(N_MIN, N_MAX, 100)
     curve_inv, curve_valve = [], []
 
@@ -247,18 +249,17 @@ def generate_figure(pump_kw, flow_pct, mode, nameplate_efficiency_pct, result):
 
     fig, ax = plt.subplots(figsize=(10, 4.5), dpi=200)
     
-    ax.plot(flows, curve_valve, color="#94A3B8", label="Valve Control (Valve 제어)", linewidth=2.5)
-    ax.plot(flows, curve_inv, color=COLOR_ACCENT, label="Inverter Control (인버터 제어)", linewidth=3.0)
-    ax.fill_between(flows, curve_inv, curve_valve, color="#38BDF8", alpha=0.2, label="Energy Saving Area (절감 구간)")
+    ax.plot(flows, curve_valve, color="#94A3B8", label="밸브 제어 (기존)", linewidth=2.5)
+    ax.plot(flows, curve_inv, color=COLOR_ACCENT, label="인버터 제어 (적용)", linewidth=3.0)
+    ax.fill_between(flows, curve_inv, curve_valve, color="#38BDF8", alpha=0.2, label="에너지 절감 구간")
     
     ax.scatter([flow_pct], [result["P_valve_input"]], color="#64748B", s=60, zorder=5, edgecolors="white", linewidths=1.5)
     ax.scatter([flow_pct], [result["P_inv_input"]], color=COLOR_ACCENT, s=70, zorder=5, edgecolors="white", linewidths=1.5)
     ax.axvline(x=flow_pct, color="#CBD5E1", linestyle=":", linewidth=1.5)
     
-    # 폰트 깨짐 방지를 위해 범례 및 레이블 명시적 지정
-    ax.set_xlabel("Flow / Speed Ratio (%)", fontsize=11, fontweight="bold", labelpad=8)
-    ax.set_ylabel("Power Consumption (kW)", fontsize=11, fontweight="bold", labelpad=8)
-    ax.set_title("Power Consumption by Flow Rate (유량 변화에 따른 소비전력)", fontsize=12, fontweight="bold", pad=12)
+    ax.set_xlabel("유량 / 속도 비율 (%)", fontsize=11, fontweight="bold", labelpad=8)
+    ax.set_ylabel("소비전력 (kW)", fontsize=11, fontweight="bold", labelpad=8)
+    ax.set_title("유량 변화에 따른 시스템 소비전력 비교 곡선", fontsize=12, fontweight="bold", pad=12)
     
     ax.grid(True, linestyle="--", alpha=0.4, color="#E2E8F0")
     ax.legend(frameon=True, facecolor="white", edgecolor="#E2E8F0", fontsize=9)
@@ -278,11 +279,13 @@ def generate_pdf_report(result, mode_name, pump_kw, flow_pct, hours, price, inv_
         buffer, pagesize=A4, rightMargin=35, leftMargin=35, topMargin=35, bottomMargin=35
     )
     styles = getSampleStyleSheet()
-    title_style = ParagraphStyle("PdfTitle", parent=styles["Heading1"], fontName=PDF_FONT,
+    
+    # PDF 스타일에 볼드체 폰트와 레귤러 폰트 각각 적용
+    title_style = ParagraphStyle("PdfTitle", parent=styles["Heading1"], fontName=PDF_FONT_BOLD,
                                   fontSize=15, leading=19, textColor=colors.HexColor(COLOR_INK))
     normal_style = ParagraphStyle("PdfNormal", parent=styles["Normal"], fontName=PDF_FONT,
                                   fontSize=8.5, leading=12, textColor=colors.HexColor(COLOR_INK))
-    header_style = ParagraphStyle("PdfHeader", parent=styles["Normal"], fontName=PDF_FONT,
+    header_style = ParagraphStyle("PdfHeader", parent=styles["Normal"], fontName=PDF_FONT_BOLD,
                                   fontSize=8.5, leading=11, alignment=1, textColor=colors.white)
     cell_style = ParagraphStyle("PdfCell", parent=styles["Normal"], fontName=PDF_FONT,
                                 fontSize=8.5, leading=11, alignment=1, textColor=colors.HexColor(COLOR_INK))
