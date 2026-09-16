@@ -21,10 +21,10 @@ from reportlab.platypus import (
 
 
 # =========================================================
-# 1. 폰트 및 리눅스 서버 배포 대응 설정
+# 1. 폰트 및 리눅스 서버 배포 대응 설정 (한글 깨짐 방지)
 # =========================================================
 def setup_fonts():
-    # 프로젝트 폴더 내 fonts/NanumGothic.ttf가 있으면 최우선 로드 (사내 리눅스 서버 한글 깨짐 방지)
+    # 프로젝트 폴더 내 fonts/NanumGothic.ttf가 있으면 최우선 로드 (사내 리눅스 서버 및 스트림릿 클라우드 대응)
     font_path = os.path.join(os.path.dirname(__file__), "fonts", "NanumGothic.ttf")
     if os.path.exists(font_path):
         try:
@@ -36,6 +36,14 @@ def setup_fonts():
             return "ReportFont"
         except Exception:
             pass
+
+    # 운영체제별 기본 폰트 설정 (리눅스 서버 환경 자동 대응)
+    if os.name == "posix":
+        plt.rcParams["font.family"] = "NanumGothic"
+    else:
+        plt.rcParams["font.family"] = "Malgun Gothic"
+
+    plt.rcParams["axes.unicode_minus"] = False
 
     # 로컬 시스템 폰트 탐색 폴백
     installed = {font.name: font.fname for font in fm.fontManager.ttflist}
@@ -55,7 +63,6 @@ def setup_fonts():
 
     if selected_name:
         plt.rc("font", family=selected_name)
-    plt.rc("axes", unicode_minus=False)
 
     if selected_path and selected_path.lower().endswith((".ttf", ".ttc")):
         try:
@@ -277,7 +284,7 @@ def generate_pdf_report(result, mode_name, pump_kw, flow_pct, hours, price, inv_
     )
     styles = getSampleStyleSheet()
     title_style = ParagraphStyle("PdfTitle", parent=styles["Heading1"], fontName=PDF_FONT,
-                                 fontSize=15, leading=19, textColor=colors.HexColor(COLOR_INK))
+                                  fontSize=15, leading=19, textColor=colors.HexColor(COLOR_INK))
     normal_style = ParagraphStyle("PdfNormal", parent=styles["Normal"], fontName=PDF_FONT,
                                   fontSize=8.5, leading=12, textColor=colors.HexColor(COLOR_INK))
     header_style = ParagraphStyle("PdfHeader", parent=styles["Normal"], fontName=PDF_FONT,
@@ -375,7 +382,6 @@ mode_option = st.sidebar.radio("모터 효율 기준", ("사내 엑셀 기준", 
 calc_mode = "excel" if mode_option == "사내 엑셀 기준" else "ie3"
 in_pm = st.sidebar.number_input("Pump Data Shaft Power (kW)", value=724.9, min_value=1.0, step=10.0, format="%.1f")
 
-# 3,000kW 초과 입력 시 실무 경고 알림
 if in_pm > 3000:
     st.sidebar.warning(
         f"⚠️ 입력하신 {in_pm:.0f}kW는 참조 효율표 범위(3,000kW 이하)를 초과합니다. "
