@@ -1,11 +1,13 @@
 import io
 import os
+
 import matplotlib
 import matplotlib.font_manager as fm
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import streamlit as st
+
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
@@ -22,71 +24,142 @@ from reportlab.platypus import (
 
 
 # =========================================================
-# 1. 폰트 동적 감지 및 등록
+# 1. 한글 폰트 동적 감지 및 등록
 # =========================================================
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+FONT_PATH = os.path.join(
+    BASE_DIR,
+    "fonts",
+    "NanumGothic-Regular.ttf",
+)
+
+PDF_FONT = "Helvetica"
+
+# Matplotlib에서 직접 사용할 FontProperties
+KOREAN_FONT = None
+
+
 def setup_fonts():
-    # 현재 실행 중인 app_gpt.py가 있는 폴더 기준
-    base_dir = os.path.dirname(os.path.abspath(__file__))
 
-    # GitHub 프로젝트 안의 fonts 폴더
-    font_dir = os.path.join(base_dir, "fonts")
+    global KOREAN_FONT
 
-    # 실제 업로드한 폰트 파일
-    reg_path = os.path.join(font_dir, "NanumGothic-Regular.ttf")
-
-    # 기본값
     matplotlib_font_name = "DejaVu Sans"
     pdf_font_name = "Helvetica"
 
-    # 폰트 파일 존재 여부 확인
-    if not os.path.exists(reg_path):
-        print(f"[WARNING] 한글 폰트 파일을 찾을 수 없습니다: {reg_path}")
+    # -----------------------------------------------------
+    # 폰트 파일 존재 확인
+    # -----------------------------------------------------
+    if not os.path.isfile(FONT_PATH):
 
-    else:
-        try:
-            # -------------------------------------------------
-            # Matplotlib용 폰트 등록
-            # -------------------------------------------------
-            fm.fontManager.addfont(reg_path)
+        print(
+            "[WARNING] 한글 폰트 파일을 찾을 수 없습니다."
+        )
 
-            # 폰트 파일 내부의 실제 폰트 이름 확인
-            prop = fm.FontProperties(fname=reg_path)
-            matplotlib_font_name = prop.get_name()
+        print(
+            f"[WARNING] 확인 경로: {FONT_PATH}"
+        )
 
-            # -------------------------------------------------
-            # ReportLab PDF용 폰트 등록
-            # -------------------------------------------------
+        # 기본 폰트 사용
+        matplotlib.rcParams["font.family"] = [
+            "DejaVu Sans"
+        ]
+
+        matplotlib.rcParams[
+            "axes.unicode_minus"
+        ] = False
+
+        return pdf_font_name
+
+    # -----------------------------------------------------
+    # Matplotlib 폰트 등록
+    # -----------------------------------------------------
+    try:
+
+        fm.fontManager.addfont(FONT_PATH)
+
+        KOREAN_FONT = fm.FontProperties(
+            fname=FONT_PATH
+        )
+
+        matplotlib_font_name = (
+            KOREAN_FONT.get_name()
+        )
+
+        matplotlib.rcParams["font.family"] = [
+            matplotlib_font_name
+        ]
+
+        matplotlib.rcParams[
+            "axes.unicode_minus"
+        ] = False
+
+        print(
+            "[OK] Matplotlib 한글 폰트 등록:"
+            f" {matplotlib_font_name}"
+        )
+
+    except Exception as e:
+
+        KOREAN_FONT = None
+
+        print(
+            "[WARNING] Matplotlib 폰트 등록 실패:"
+            f" {repr(e)}"
+        )
+
+        matplotlib.rcParams["font.family"] = [
+            "DejaVu Sans"
+        ]
+
+        matplotlib.rcParams[
+            "axes.unicode_minus"
+        ] = False
+
+    # -----------------------------------------------------
+    # ReportLab PDF 폰트 등록
+    # -----------------------------------------------------
+    try:
+
+        registered_fonts = (
+            pdfmetrics.getRegisteredFontNames()
+        )
+
+        if "NanumGothicCustom" not in registered_fonts:
+
             pdfmetrics.registerFont(
-                TTFont("NanumGothicCustom", reg_path)
-            )
-            pdf_font_name = "NanumGothicCustom"
-
-            print(
-                f"[OK] 한글 폰트 등록 완료: "
-                f"{matplotlib_font_name}"
+                TTFont(
+                    "NanumGothicCustom",
+                    FONT_PATH,
+                )
             )
 
-        except Exception as e:
-            print(f"[WARNING] 폰트 로드 중 오류 발생: {e}")
+        pdf_font_name = "NanumGothicCustom"
 
-    # ---------------------------------------------------------
-    # Matplotlib 기본 폰트 적용
-    # ---------------------------------------------------------
-    plt.rcParams["font.family"] = matplotlib_font_name
+        print(
+            "[OK] ReportLab 한글 폰트 등록 완료"
+        )
 
-    # 마이너스(-) 기호 깨짐 방지
-    plt.rcParams["axes.unicode_minus"] = False
+    except Exception as e:
+
+        print(
+            "[WARNING] ReportLab 폰트 등록 실패:"
+            f" {repr(e)}"
+        )
+
+        pdf_font_name = "Helvetica"
 
     return pdf_font_name
 
 
-# 프로그램 시작 시 폰트 설정
 PDF_FONT = setup_fonts()
 
 
 # =========================================================
 # 2. 색상 설정
 # =========================================================
+
 COLOR_INK = "#172033"
 COLOR_MUTED = "#6B7280"
 COLOR_LINE = "#D8DEE9"
@@ -97,8 +170,9 @@ COLOR_BLUE_BG = "#EFF6FF"
 
 
 # =========================================================
-# 3. Streamlit 페이지 기본 설정
+# 3. Streamlit 기본 설정
 # =========================================================
+
 st.set_page_config(
     page_title="고압인버터 에너지 절감 시뮬레이터",
     layout="wide",
@@ -108,9 +182,11 @@ st.set_page_config(
 # =========================================================
 # 4. 화면 CSS
 # =========================================================
+
 st.markdown(
     f"""
     <style>
+
     .app-title {{
         font-size: 26px;
         font-weight: 750;
@@ -124,59 +200,6 @@ st.markdown(
         margin-bottom: 24px;
     }}
 
-    .summary-grid {{
-        display: grid;
-        grid-template-columns: repeat(4, minmax(0, 1fr));
-        gap: 12px;
-        margin: 8px 0 22px 0;
-    }}
-
-    .summary-card {{
-        border: 1px solid {COLOR_LINE};
-        border-radius: 10px;
-        padding: 18px 16px;
-        background: white;
-        min-height: 112px;
-    }}
-
-    .summary-card-blue {{
-        background: {COLOR_BLUE_BG};
-        border-color: #BFDBFE;
-    }}
-
-    .summary-card-green {{
-        background: {COLOR_GREEN_BG};
-        border-color: #BBF7D0;
-    }}
-
-    .summary-label {{
-        color: {COLOR_MUTED};
-        font-size: 13px;
-        margin-bottom: 10px;
-    }}
-
-    .summary-value {{
-        color: {COLOR_INK};
-        font-size: 23px;
-        font-weight: 750;
-        line-height: 1.1;
-    }}
-
-    .summary-value-green {{
-        color: {COLOR_GREEN};
-    }}
-
-    .summary-note {{
-        color: {COLOR_MUTED};
-        font-size: 12px;
-        margin-top: 8px;
-    }}
-
-    @media (max-width: 900px) {{
-        .summary-grid {{
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-        }}
-    }}
     </style>
     """,
     unsafe_allow_html=True,
@@ -238,6 +261,7 @@ N_MAX = 100.0
 # =========================================================
 
 def lookup_interp(x, table):
+
     return float(
         np.interp(
             x,
@@ -247,7 +271,10 @@ def lookup_interp(x, table):
     )
 
 
-def loss_profile_from_excel(pump_rated_shaft_kw):
+def loss_profile_from_excel(
+    pump_rated_shaft_kw
+):
+
     excel_eta_pct = lookup_interp(
         pump_rated_shaft_kw,
         EXCEL_MOTOR_TABLE,
@@ -267,7 +294,8 @@ def loss_profile_from_excel(pump_rated_shaft_kw):
     )
 
     load_loss_fraction = (
-        1.0 - fixed_loss_fraction
+        1.0
+        - fixed_loss_fraction
     )
 
     return (
@@ -277,7 +305,10 @@ def loss_profile_from_excel(pump_rated_shaft_kw):
     )
 
 
-def inverter_efficiency_pct(speed_ratio):
+def inverter_efficiency_pct(
+    speed_ratio
+):
+
     if speed_ratio <= 0:
         return 0.0
 
@@ -286,7 +317,10 @@ def inverter_efficiency_pct(speed_ratio):
 
     return (
         98.1
-        - (0.5 + 0.6 * speed_ratio)
+        - (
+            0.5
+            + 0.6 * speed_ratio
+        )
         / speed_ratio**3
     )
 
@@ -298,14 +332,18 @@ def calculate_all(
     mode,
     nameplate_efficiency_pct=None,
 ):
+
     if pump_rated_shaft_kw <= 0:
+
         raise ValueError(
             "Pump Data Shaft Power는 0보다 커야 합니다."
         )
 
     if not N_MIN <= flow_pct <= N_MAX:
+
         raise ValueError(
-            f"유량/속도는 {N_MIN}~{N_MAX}% 범위여야 합니다."
+            f"유량/속도는 "
+            f"{N_MIN}~{N_MAX}% 범위여야 합니다."
         )
 
     selected_table = (
@@ -320,7 +358,10 @@ def calculate_all(
     )
 
     if nameplate_efficiency_pct is None:
-        applied_eta_pct = reference_eta_pct
+
+        applied_eta_pct = (
+            reference_eta_pct
+        )
 
         efficiency_source = (
             "사내 엑셀 효율표"
@@ -329,8 +370,14 @@ def calculate_all(
         )
 
     else:
-        applied_eta_pct = nameplate_efficiency_pct
-        efficiency_source = "현장 모터 명판 입력값"
+
+        applied_eta_pct = (
+            nameplate_efficiency_pct
+        )
+
+        efficiency_source = (
+            "현장 모터 명판 입력값"
+        )
 
     n = flow_pct / 100.0
 
@@ -348,38 +395,43 @@ def calculate_all(
         - pump_rated_shaft_kw
     )
 
-    # 인버터 운전 축동력
+    # -----------------------------------------------------
+    # 인버터 운전
+    # -----------------------------------------------------
+
     pm_inv = (
         pump_rated_shaft_kw
         * n**3
     )
 
-    # 인버터 운전 손실
     loss_inv_kw = (
         fixed_loss_fraction * n
         + load_loss_fraction * n**2
     ) * total_loss_kw
 
-    # 인버터 운전 모터 효율
     eta_motor_inv = (
         pm_inv
         / (pm_inv + loss_inv_kw)
     )
 
-    # 인버터 자체 효율
-    eta_inv_pct = inverter_efficiency_pct(n)
+    eta_inv_pct = (
+        inverter_efficiency_pct(n)
+    )
 
-    # 시스템 종합 효율
     eta_total = (
         eta_motor_inv
         * eta_inv_pct
         / 100.0
     )
 
-    # 인버터 입력전력
-    p_inv_input = pm_inv / eta_total
+    p_inv_input = (
+        pm_inv / eta_total
+    )
 
+    # -----------------------------------------------------
     # 밸브 제어
+    # -----------------------------------------------------
+
     valve_ratio = (
         lookup_interp(
             flow_pct,
@@ -395,7 +447,8 @@ def calculate_all(
 
     loss_valve_kw = (
         fixed_loss_fraction
-        + load_loss_fraction * valve_ratio**2
+        + load_loss_fraction
+        * valve_ratio**2
     ) * total_loss_kw
 
     eta_motor_valve = (
@@ -408,48 +461,95 @@ def calculate_all(
         / eta_motor_valve
     )
 
-    # 절감전력
+    # -----------------------------------------------------
+    # 절감량
+    # -----------------------------------------------------
+
     saving_kw = (
         p_valve_input
         - p_inv_input
     )
 
     return {
+
         "mode": mode,
-        "efficiency_source": efficiency_source,
-        "reference_eta_pct": reference_eta_pct,
-        "applied_eta_pct": applied_eta_pct,
-        "excel_eta_pct": excel_eta_pct,
-        "speed_ratio": n,
-        "total_loss_kw": total_loss_kw,
-        "fixed_loss_fraction": fixed_loss_fraction,
-        "load_loss_fraction": load_loss_fraction,
-        "Pm_inv": pm_inv,
-        "loss_inv_kw": loss_inv_kw,
-        "eta_motor_inv_pct": eta_motor_inv * 100.0,
-        "eta_inv_self_pct": eta_inv_pct,
-        "eta_total_pct": eta_total * 100.0,
-        "P_inv_input": p_inv_input,
-        "valve_ratio_pct": valve_ratio * 100.0,
-        "Pm_valve": pm_valve,
-        "loss_valve_kw": loss_valve_kw,
-        "eta_motor_valve_pct": eta_motor_valve * 100.0,
-        "P_valve_input": p_valve_input,
-        "saving_kw": saving_kw,
-        "saving_pct": (
+
+        "efficiency_source":
+            efficiency_source,
+
+        "reference_eta_pct":
+            reference_eta_pct,
+
+        "applied_eta_pct":
+            applied_eta_pct,
+
+        "excel_eta_pct":
+            excel_eta_pct,
+
+        "speed_ratio":
+            n,
+
+        "total_loss_kw":
+            total_loss_kw,
+
+        "fixed_loss_fraction":
+            fixed_loss_fraction,
+
+        "load_loss_fraction":
+            load_loss_fraction,
+
+        "Pm_inv":
+            pm_inv,
+
+        "loss_inv_kw":
+            loss_inv_kw,
+
+        "eta_motor_inv_pct":
+            eta_motor_inv * 100.0,
+
+        "eta_inv_self_pct":
+            eta_inv_pct,
+
+        "eta_total_pct":
+            eta_total * 100.0,
+
+        "P_inv_input":
+            p_inv_input,
+
+        "valve_ratio_pct":
+            valve_ratio * 100.0,
+
+        "Pm_valve":
+            pm_valve,
+
+        "loss_valve_kw":
+            loss_valve_kw,
+
+        "eta_motor_valve_pct":
+            eta_motor_valve * 100.0,
+
+        "P_valve_input":
+            p_valve_input,
+
+        "saving_kw":
+            saving_kw,
+
+        "saving_pct":
             saving_kw
             / p_valve_input
-            * 100.0
-        ),
+            * 100.0,
     }
 
 
-def fmt(value, digits=1):
-    return (
-        "-"
-        if value is None
-        else f"{value:,.{digits}f}"
-    )
+def fmt(
+    value,
+    digits=1
+):
+
+    if value is None:
+        return "-"
+
+    return f"{value:,.{digits}f}"
 
 
 # =========================================================
@@ -463,6 +563,7 @@ def generate_figure(
     nameplate_efficiency_pct,
     result,
 ):
+
     flows = np.linspace(
         N_MIN,
         N_MAX,
@@ -473,6 +574,7 @@ def generate_figure(
     curve_valve = []
 
     for flow in flows:
+
         curve_result = calculate_all(
             pump_kw,
             float(flow),
@@ -493,7 +595,10 @@ def generate_figure(
         dpi=200,
     )
 
-    # 밸브 제어
+    # -----------------------------------------------------
+    # 선 그래프
+    # -----------------------------------------------------
+
     ax.plot(
         flows,
         curve_valve,
@@ -502,7 +607,6 @@ def generate_figure(
         linewidth=2.5,
     )
 
-    # 인버터 제어
     ax.plot(
         flows,
         curve_inv,
@@ -511,7 +615,6 @@ def generate_figure(
         linewidth=3.0,
     )
 
-    # 에너지 절감 구간
     ax.fill_between(
         flows,
         curve_inv,
@@ -521,7 +624,10 @@ def generate_figure(
         label="에너지 절감 구간",
     )
 
+    # -----------------------------------------------------
     # 현재 운전점
+    # -----------------------------------------------------
+
     ax.scatter(
         [flow_pct],
         [result["P_valve_input"]],
@@ -542,7 +648,6 @@ def generate_figure(
         linewidths=1.5,
     )
 
-    # 현재 유량 기준선
     ax.axvline(
         x=flow_pct,
         color="#CBD5E1",
@@ -550,27 +655,77 @@ def generate_figure(
         linewidth=1.5,
     )
 
-    # 축 이름
-    ax.set_xlabel(
-        "유량 / 속도 비율 (%)",
-        fontsize=11,
-        fontweight="bold",
-        labelpad=8,
-    )
+    # -----------------------------------------------------
+    # 한글 폰트 직접 지정
+    # -----------------------------------------------------
 
-    ax.set_ylabel(
-        "소비전력 (kW)",
-        fontsize=11,
-        fontweight="bold",
-        labelpad=8,
-    )
+    if KOREAN_FONT is not None:
 
-    ax.set_title(
-        "유량 변화에 따른 시스템 소비전력 비교 곡선",
-        fontsize=12,
-        fontweight="bold",
-        pad=12,
-    )
+        ax.set_xlabel(
+            "유량 / 속도 비율 (%)",
+            fontproperties=KOREAN_FONT,
+            fontsize=11,
+            fontweight="bold",
+            labelpad=8,
+        )
+
+        ax.set_ylabel(
+            "소비전력 (kW)",
+            fontproperties=KOREAN_FONT,
+            fontsize=11,
+            fontweight="bold",
+            labelpad=8,
+        )
+
+        ax.set_title(
+            "유량 변화에 따른 시스템 소비전력 비교 곡선",
+            fontproperties=KOREAN_FONT,
+            fontsize=12,
+            fontweight="bold",
+            pad=12,
+        )
+
+        legend = ax.legend(
+            frameon=True,
+            facecolor="white",
+            edgecolor="#E2E8F0",
+            fontsize=9,
+            prop=KOREAN_FONT,
+        )
+
+    else:
+
+        ax.set_xlabel(
+            "유량 / 속도 비율 (%)",
+            fontsize=11,
+            fontweight="bold",
+            labelpad=8,
+        )
+
+        ax.set_ylabel(
+            "소비전력 (kW)",
+            fontsize=11,
+            fontweight="bold",
+            labelpad=8,
+        )
+
+        ax.set_title(
+            "유량 변화에 따른 시스템 소비전력 비교 곡선",
+            fontsize=12,
+            fontweight="bold",
+            pad=12,
+        )
+
+        legend = ax.legend(
+            frameon=True,
+            facecolor="white",
+            edgecolor="#E2E8F0",
+            fontsize=9,
+        )
+
+    # -----------------------------------------------------
+    # 축/그리드
+    # -----------------------------------------------------
 
     ax.grid(
         True,
@@ -579,18 +734,23 @@ def generate_figure(
         color="#E2E8F0",
     )
 
-    ax.legend(
-        frameon=True,
-        facecolor="white",
-        edgecolor="#E2E8F0",
-        fontsize=9,
-    )
+    for spine in (
+        "top",
+        "right",
+    ):
 
-    for spine in ("top", "right"):
-        ax.spines[spine].set_visible(False)
+        ax.spines[
+            spine
+        ].set_visible(False)
 
-    for spine in ("left", "bottom"):
-        ax.spines[spine].set_color("#94A3B8")
+    for spine in (
+        "left",
+        "bottom",
+    ):
+
+        ax.spines[
+            spine
+        ].set_color("#94A3B8")
 
     plt.tight_layout()
 
@@ -612,6 +772,7 @@ def generate_pdf_report(
     payback_years,
     figure,
 ):
+
     buffer = io.BytesIO()
 
     document = SimpleDocTemplate(
@@ -631,7 +792,9 @@ def generate_pdf_report(
         fontName=PDF_FONT,
         fontSize=15,
         leading=19,
-        textColor=colors.HexColor(COLOR_INK),
+        textColor=colors.HexColor(
+            COLOR_INK
+        ),
     )
 
     normal_style = ParagraphStyle(
@@ -640,7 +803,9 @@ def generate_pdf_report(
         fontName=PDF_FONT,
         fontSize=8.5,
         leading=12,
-        textColor=colors.HexColor(COLOR_INK),
+        textColor=colors.HexColor(
+            COLOR_INK
+        ),
     )
 
     header_style = ParagraphStyle(
@@ -660,7 +825,9 @@ def generate_pdf_report(
         fontSize=8.5,
         leading=11,
         alignment=1,
-        textColor=colors.HexColor(COLOR_INK),
+        textColor=colors.HexColor(
+            COLOR_INK
+        ),
     )
 
     note_style = ParagraphStyle(
@@ -669,13 +836,24 @@ def generate_pdf_report(
         fontName=PDF_FONT,
         fontSize=7.2,
         leading=10,
-        textColor=colors.HexColor(COLOR_MUTED),
+        textColor=colors.HexColor(
+            COLOR_MUTED
+        ),
     )
 
-    def report_table(rows, widths):
+    # -----------------------------------------------------
+    # PDF Table 함수
+    # -----------------------------------------------------
+
+    def report_table(
+        rows,
+        widths,
+    ):
+
         prepared = []
 
         for row_index, row in enumerate(rows):
+
             style = (
                 header_style
                 if row_index == 0
@@ -704,33 +882,44 @@ def generate_pdf_report(
                         "BACKGROUND",
                         (0, 0),
                         (-1, 0),
-                        colors.HexColor(COLOR_INK),
+                        colors.HexColor(
+                            COLOR_INK
+                        ),
                     ),
+
                     (
                         "BACKGROUND",
                         (0, 1),
                         (-1, -1),
-                        colors.HexColor("#F8FAFC"),
+                        colors.HexColor(
+                            "#F8FAFC"
+                        ),
                     ),
+
                     (
                         "GRID",
                         (0, 0),
                         (-1, -1),
                         0.5,
-                        colors.HexColor(COLOR_LINE),
+                        colors.HexColor(
+                            COLOR_LINE
+                        ),
                     ),
+
                     (
                         "VALIGN",
                         (0, 0),
                         (-1, -1),
                         "MIDDLE",
                     ),
+
                     (
                         "TOPPADDING",
                         (0, 0),
                         (-1, -1),
                         5,
                     ),
+
                     (
                         "BOTTOMPADDING",
                         (0, 0),
@@ -742,6 +931,10 @@ def generate_pdf_report(
         )
 
         return table
+
+    # -----------------------------------------------------
+    # 연간 절감금액
+    # -----------------------------------------------------
 
     saving_won = (
         result["saving_kw"]
@@ -755,7 +948,12 @@ def generate_pdf_report(
         else "산출 불가 (절감액 없음)"
     )
 
+    # -----------------------------------------------------
+    # PDF 구성
+    # -----------------------------------------------------
+
     items = [
+
         Paragraph(
             "고압인버터 에너지 절감 시뮬레이션 보고서",
             title_style,
@@ -765,13 +963,18 @@ def generate_pdf_report(
 
         Paragraph(
             f"적용 기준: {mode_name} / "
-            f"모터 효율: {result['efficiency_source']} "
+            f"모터 효율: "
+            f"{result['efficiency_source']} "
             f"({result['applied_eta_pct']:.2f}%)"
             f"<br/>"
-            f"Pump Shaft Power: {pump_kw:.1f} kW / "
-            f"운전 유량: {flow_pct:.1f}% / "
-            f"연간 운전시간: {hours:,.0f} h / "
-            f"전력단가: {price:,.1f} 원/kWh",
+            f"Pump Shaft Power: "
+            f"{pump_kw:.1f} kW / "
+            f"운전 유량: "
+            f"{flow_pct:.1f}% / "
+            f"연간 운전시간: "
+            f"{hours:,.0f} h / "
+            f"전력단가: "
+            f"{price:,.1f} 원/kWh",
             normal_style,
         ),
 
@@ -792,24 +995,28 @@ def generate_pdf_report(
                     "인버터 제어",
                     "절감 효과",
                 ],
+
                 [
                     "소비전력",
                     f"{result['P_valve_input']:,.1f} kW",
                     f"{result['P_inv_input']:,.1f} kW",
                     f"{result['saving_kw']:,.1f} kW",
                 ],
+
                 [
                     "절감률",
                     "-",
                     "-",
                     f"{result['saving_pct']:.1f}%",
                 ],
+
                 [
                     "연간 절감 금액",
                     "-",
                     "-",
                     f"{saving_won / 1e8:.2f} 억원/년",
                 ],
+
                 [
                     "예상 투자 회수기간",
                     "-",
@@ -817,7 +1024,12 @@ def generate_pdf_report(
                     payback_str,
                 ],
             ],
-            [115, 115, 115, 145],
+            [
+                115,
+                115,
+                115,
+                145,
+            ],
         ),
 
         Spacer(1, 14),
@@ -831,29 +1043,40 @@ def generate_pdf_report(
 
         report_table(
             [
-                ["항목", "값"],
+                [
+                    "항목",
+                    "값",
+                ],
+
                 [
                     "적용 정격 모터 효율",
                     f"{result['applied_eta_pct']:.2f}%",
                 ],
+
                 [
                     "인버터 모터 효율",
                     f"{result['eta_motor_inv_pct']:.2f}%",
                 ],
+
                 [
                     "인버터 자체 효율",
                     f"{result['eta_inv_self_pct']:.2f}%",
                 ],
+
                 [
                     "인버터 종합 효율",
                     f"{result['eta_total_pct']:.2f}%",
                 ],
+
                 [
                     "밸브 제어 모터 효율",
                     f"{result['eta_motor_valve_pct']:.2f}%",
                 ],
             ],
-            [230, 260],
+            [
+                230,
+                260,
+            ],
         ),
 
         Spacer(1, 14),
@@ -866,9 +1089,10 @@ def generate_pdf_report(
         Spacer(1, 6),
     ]
 
-    # ---------------------------------------------------------
-    # 그래프를 PDF에 삽입
-    # ---------------------------------------------------------
+    # -----------------------------------------------------
+    # 그래프 PDF 삽입
+    # -----------------------------------------------------
+
     image_buffer = io.BytesIO()
 
     figure.savefig(
@@ -888,8 +1112,13 @@ def generate_pdf_report(
         )
     )
 
+    # -----------------------------------------------------
+    # 면책 조항
+    # -----------------------------------------------------
+
     items.extend(
         [
+
             Spacer(1, 12),
 
             Paragraph(
@@ -946,7 +1175,10 @@ st.markdown(
 # 10. 사이드바 입력
 # =========================================================
 
-st.sidebar.header("운전 조건 설정")
+st.sidebar.header(
+    "운전 조건 설정"
+)
+
 
 mode_option = st.sidebar.radio(
     "모터 효율 기준",
@@ -955,6 +1187,7 @@ mode_option = st.sidebar.radio(
         "IE3 참조 효율 기준",
     ),
 )
+
 
 calc_mode = (
     "excel"
@@ -973,6 +1206,7 @@ in_pm = st.sidebar.number_input(
 
 
 if in_pm > 3000:
+
     st.sidebar.warning(
         f"⚠️ 입력하신 {in_pm:.0f}kW는 "
         "참조 효율표 범위(3,000kW 이하)를 초과합니다."
@@ -1013,7 +1247,10 @@ st.sidebar.divider()
 # 11. 투자 경제성 분석
 # =========================================================
 
-st.sidebar.subheader("💰 투자 경제성 분석")
+st.sidebar.subheader(
+    "💰 투자 경제성 분석"
+)
+
 
 in_inv_cost = st.sidebar.number_input(
     "인버터 도입 및 공사 비용 (원)",
@@ -1031,13 +1268,17 @@ st.sidebar.divider()
 # 12. 현장 모터 명판 효율
 # =========================================================
 
-st.sidebar.subheader("현장 모터 명판 효율")
+st.sidebar.subheader(
+    "현장 모터 명판 효율"
+)
+
 
 selected_table = (
     EXCEL_MOTOR_TABLE
     if calc_mode == "excel"
     else IE3_MOTOR_TABLE
 )
+
 
 default_eta = lookup_interp(
     in_pm,
@@ -1055,6 +1296,7 @@ nameplate_eta = None
 
 
 if use_nameplate:
+
     nameplate_eta = st.sidebar.number_input(
         "명판 정격 효율 (%)",
         value=float(default_eta),
@@ -1065,8 +1307,10 @@ if use_nameplate:
     )
 
 else:
+
     st.sidebar.caption(
-        f"현재 표 기준 정격 효율: {default_eta:.2f}%"
+        f"현재 표 기준 정격 효율: "
+        f"{default_eta:.2f}%"
     )
 
 
@@ -1076,27 +1320,34 @@ else:
 
 st.sidebar.divider()
 
-st.sidebar.subheader("계산 내용 표시")
+st.sidebar.subheader(
+    "계산 내용 표시"
+)
+
 
 show_steps = st.sidebar.checkbox(
     "계산 과정 보기",
     value=False,
 )
 
+
 show_losses = st.sidebar.checkbox(
     "손실 모델 보기",
     value=False,
 )
+
 
 show_table = st.sidebar.checkbox(
     "적용 효율표 보기",
     value=False,
 )
 
+
 show_compare = st.sidebar.checkbox(
     "엑셀 기준과 IE3 비교",
     value=False,
 )
+
 
 show_ie3_basis = st.sidebar.checkbox(
     "IE3 적용 기준 및 근거 보기",
@@ -1109,6 +1360,7 @@ show_ie3_basis = st.sidebar.checkbox(
 # =========================================================
 
 try:
+
     res = calculate_all(
         in_pm,
         in_flow,
@@ -1117,7 +1369,11 @@ try:
     )
 
 except ValueError as error:
-    st.error(str(error))
+
+    st.error(
+        str(error)
+    )
+
     st.stop()
 
 
@@ -1130,6 +1386,7 @@ saving_won = (
     * in_hours
     * in_price
 )
+
 
 payback_years = (
     in_inv_cost / saving_won
@@ -1170,6 +1427,7 @@ pdf_data = generate_pdf_report(
 
 st.sidebar.divider()
 
+
 st.sidebar.download_button(
     "PDF 보고서 다운로드",
     data=pdf_data,
@@ -1191,6 +1449,7 @@ st.markdown(
     "### 핵심 절감 및 투자 회수 요약"
 )
 
+
 payback_display = (
     f"{payback_years:.2f} 년"
     if payback_years is not None
@@ -1198,74 +1457,71 @@ payback_display = (
 )
 
 
-st.markdown(
-    f"""
-    <div class="summary-grid">
+# ---------------------------------------------------------
+# 기존 HTML 카드 제거
+# st.markdown + <div> 방식 대신 Streamlit 기본 UI 사용
+# ---------------------------------------------------------
 
-        <div class="summary-card">
-            <div class="summary-label">
-                Valve 제어 소비전력
-            </div>
-
-            <div class="summary-value">
-                {res['P_valve_input']:,.1f} kW
-            </div>
-
-            <div class="summary-note">
-                모터 효율 {res['eta_motor_valve_pct']:.1f}%
-            </div>
-        </div>
+col1, col2, col3, col4 = st.columns(4)
 
 
-        <div class="summary-card summary-card-blue">
-            <div class="summary-label">
-                인버터 제어 소비전력
-            </div>
+with col1:
 
-            <div class="summary-value">
-                {res['P_inv_input']:,.1f} kW
-            </div>
-
-            <div class="summary-note">
-                종합 효율 {res['eta_total_pct']:.1f}%
-            </div>
-        </div>
-
-
-        <div class="summary-card summary-card-green">
-            <div class="summary-label">
-                연간 절감 금액
-            </div>
-
-            <div class="summary-value summary-value-green">
-                {saving_won / 1e8:.2f} 억원
-            </div>
-
-            <div class="summary-note">
-                절감 전력 {res['saving_kw']:,.1f} kW
-                ({res['saving_pct']:.1f}%)
-            </div>
-        </div>
+    st.metric(
+        label="Valve 제어 소비전력",
+        value=(
+            f"{res['P_valve_input']:,.1f} kW"
+        ),
+        delta=(
+            f"모터 효율 "
+            f"{res['eta_motor_valve_pct']:.1f}%"
+        ),
+        delta_color="off",
+    )
 
 
-        <div class="summary-card summary-card-green">
-            <div class="summary-label">
-                예상 투자 회수기간
-            </div>
+with col2:
 
-            <div class="summary-value summary-value-green">
-                {payback_display}
-            </div>
+    st.metric(
+        label="인버터 제어 소비전력",
+        value=(
+            f"{res['P_inv_input']:,.1f} kW"
+        ),
+        delta=(
+            f"종합 효율 "
+            f"{res['eta_total_pct']:.1f}%"
+        ),
+        delta_color="off",
+    )
 
-            <div class="summary-note">
-                도입비용 {in_inv_cost/1e8:,.2f}억원 기준
-            </div>
-        </div>
 
-    </div>
-    """,
-    unsafe_allow_html=True,
-)
+with col3:
+
+    st.metric(
+        label="연간 절감 금액",
+        value=(
+            f"{saving_won / 1e8:.2f} 억원"
+        ),
+        delta=(
+            f"절감 전력 "
+            f"{res['saving_kw']:,.1f} kW "
+            f"({res['saving_pct']:.1f}%)"
+        ),
+        delta_color="normal",
+    )
+
+
+with col4:
+
+    st.metric(
+        label="예상 투자 회수기간",
+        value=payback_display,
+        delta=(
+            f"도입비용 "
+            f"{in_inv_cost / 1e8:.2f}억원 기준"
+        ),
+        delta_color="off",
+    )
 
 
 st.caption(
@@ -1286,6 +1542,7 @@ st.markdown(
 
 detail_df = pd.DataFrame(
     {
+
         "항목": [
             "소요 축동력 (kW)",
             "모터 효율 (%)",
@@ -1295,19 +1552,45 @@ detail_df = pd.DataFrame(
         ],
 
         "밸브 제어": [
-            fmt(res["Pm_valve"]),
-            fmt(res["eta_motor_valve_pct"]),
+            fmt(
+                res["Pm_valve"]
+            ),
+
+            fmt(
+                res["eta_motor_valve_pct"]
+            ),
+
             "-",
-            fmt(res["eta_motor_valve_pct"]),
-            fmt(res["P_valve_input"]),
+
+            fmt(
+                res["eta_motor_valve_pct"]
+            ),
+
+            fmt(
+                res["P_valve_input"]
+            ),
         ],
 
         "인버터 제어": [
-            fmt(res["Pm_inv"]),
-            fmt(res["eta_motor_inv_pct"]),
-            fmt(res["eta_inv_self_pct"]),
-            fmt(res["eta_total_pct"]),
-            fmt(res["P_inv_input"]),
+            fmt(
+                res["Pm_inv"]
+            ),
+
+            fmt(
+                res["eta_motor_inv_pct"]
+            ),
+
+            fmt(
+                res["eta_inv_self_pct"]
+            ),
+
+            fmt(
+                res["eta_total_pct"]
+            ),
+
+            fmt(
+                res["P_inv_input"]
+            ),
         ],
     }
 )
@@ -1328,7 +1611,11 @@ st.markdown(
     "### 유량 변화에 따른 소비전력"
 )
 
-st.pyplot(fig)
+
+st.pyplot(
+    fig,
+    use_container_width=True,
+)
 
 
 # =========================================================
@@ -1343,6 +1630,7 @@ if show_steps:
 
     step_df = pd.DataFrame(
         [
+
             [
                 "운전 속도비 n",
                 f"{res['speed_ratio']:.4f}",
@@ -1350,7 +1638,8 @@ if show_steps:
 
             [
                 "인버터 축동력",
-                f"Pm × n³ = {res['Pm_inv']:,.3f} kW",
+                f"Pm × n³ = "
+                f"{res['Pm_inv']:,.3f} kW",
             ],
 
             [
@@ -1368,6 +1657,7 @@ if show_steps:
                 f"{res['P_valve_input']:,.3f} kW",
             ],
         ],
+
         columns=[
             "계산 항목",
             "값",
@@ -1393,6 +1683,7 @@ if show_losses:
 
     loss_df = pd.DataFrame(
         [
+
             [
                 "적용 정격 모터 효율",
                 f"{res['applied_eta_pct']:.3f}%",
@@ -1423,6 +1714,7 @@ if show_losses:
                 f"{res['loss_valve_kw']:.3f} kW",
             ],
         ],
+
         columns=[
             "항목",
             "값",
@@ -1452,7 +1744,9 @@ if show_table:
         else "IE3 참조 모터 효율표"
     )
 
-    st.caption(table_name)
+    st.caption(
+        table_name
+    )
 
     st.dataframe(
         pd.DataFrame(
@@ -1493,36 +1787,58 @@ if show_compare:
 
     compare_df = pd.DataFrame(
         [
+
             [
                 "적용 모터 효율 (%)",
-                excel_result["applied_eta_pct"],
-                ie3_result["applied_eta_pct"],
+                excel_result[
+                    "applied_eta_pct"
+                ],
+                ie3_result[
+                    "applied_eta_pct"
+                ],
             ],
 
             [
                 "인버터 소비전력 (kW)",
-                excel_result["P_inv_input"],
-                ie3_result["P_inv_input"],
+                excel_result[
+                    "P_inv_input"
+                ],
+                ie3_result[
+                    "P_inv_input"
+                ],
             ],
 
             [
                 "밸브 소비전력 (kW)",
-                excel_result["P_valve_input"],
-                ie3_result["P_valve_input"],
+                excel_result[
+                    "P_valve_input"
+                ],
+                ie3_result[
+                    "P_valve_input"
+                ],
             ],
 
             [
                 "절감 전력 (kW)",
-                excel_result["saving_kw"],
-                ie3_result["saving_kw"],
+                excel_result[
+                    "saving_kw"
+                ],
+                ie3_result[
+                    "saving_kw"
+                ],
             ],
 
             [
                 "절감률 (%)",
-                excel_result["saving_pct"],
-                ie3_result["saving_pct"],
+                excel_result[
+                    "saving_pct"
+                ],
+                ie3_result[
+                    "saving_pct"
+                ],
             ],
         ],
+
         columns=[
             "항목",
             "사내 엑셀 기준",
@@ -1558,6 +1874,7 @@ if show_ie3_basis:
         - 일반 적용 범위는 **0.12~1,000 kW, 1 kV 이하**입니다.
         - 인버터 운전 시 시스템 손실은 모터 효율등급에 직접 포함되지 않으므로, 중요 제안 시에는 현장 명판 효율을 우선 적용해야 합니다.
 
-        공식 규격 문서: [IEC 60034-30-1 Preview Link](https://webstore.iec.ch/en/iec_catalog/product/preview/?id=L3B1Yi9wZGYvcHJldmlldy9pbmZvX2llYzYwMDM0LTMwLTF7ZWd0LjB9Yi5wZGY%3D)
+        공식 규격 문서:
+        [IEC 60034-30-1 Preview Link](https://webstore.iec.ch/en/iec_catalog/product/preview/?id=L3B1Yi9wZGYvcHJldmlldy9pbmZvX2llYzYwMDM0LTMwLTF7ZWd0LjB9Yi5wZGY%3D)
         """
     )
