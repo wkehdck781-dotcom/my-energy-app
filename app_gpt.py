@@ -21,12 +21,12 @@ from reportlab.platypus import (
 
 
 # =========================================================
-# 1. 멀티 폰트 및 서버 환경 대응 설정 (한글 깨짐 원천 차단)
+# 1. 폰트 및 서버 환경 대응 설정 (PDF 폰트 매핑 오류 해결)
 # =========================================================
 def setup_fonts():
     font_dir = os.path.join(os.path.dirname(__file__), "fonts")
     
-    # 1. 맷플롯립(Matplotlib)에 3가지 폰트 전부 등록
+    # 1. 맷플롯립(Matplotlib) 폰트 등록
     for fname in ["NanumGothic.ttf", "NanumGothicBold.ttf", "NanumGothicExtraBold.ttf"]:
         fpath = os.path.join(font_dir, fname)
         if os.path.exists(fpath):
@@ -35,37 +35,22 @@ def setup_fonts():
             except Exception:
                 pass
 
-    # Matplotlib 기본 폰트를 나눔고딕으로 강제 지정
     plt.rcParams["font.family"] = "NanumGothic"
     plt.rcParams["axes.unicode_minus"] = False
 
-    # 2. 리포트랩(PDF)용 폰트 등록 (Regular와 Bold 분리 등록)
+    # 2. 리포트랩(PDF) 폰트 등록 (에러 방지를 위해 'NanumGothic' 단일 이름으로 깔끔하게 등록)
     reg_path = os.path.join(font_dir, "NanumGothic.ttf")
-    bold_path = os.path.join(font_dir, "NanumGothicBold.ttf")
-    
     if os.path.exists(reg_path):
         try:
             pdfmetrics.registerFont(TTFont("NanumGothic", reg_path))
+            return "NanumGothic"
         except Exception:
             pass
             
-    if os.path.exists(bold_path):
-        try:
-            pdfmetrics.registerFont(TTFont("NanumGothic-Bold", bold_path))
-        except Exception:
-            # 볼드 파일이 없으면 레귤러로 대체
-            pdfmetrics.registerFont(TTFont("NanumGothic-Bold", reg_path))
-    else:
-        try:
-            pdfmetrics.registerFont(TTFont("NanumGothic-Bold", reg_path))
-        except Exception:
-            pass
-
-    # 등록된 폰트 이름 반환
-    return "NanumGothic", "NanumGothic-Bold"
+    return "Helvetica"
 
 
-PDF_FONT, PDF_FONT_BOLD = setup_fonts()
+PDF_FONT = setup_fonts()
 
 COLOR_INK = "#172033"
 COLOR_MUTED = "#6B7280"
@@ -235,7 +220,6 @@ def fmt(value, digits=1):
 
 
 def generate_figure(pump_kw, flow_pct, mode, nameplate_efficiency_pct, result):
-    # 명시적으로 나눔고딕 폰트 지정
     plt.rcParams["font.family"] = "NanumGothic"
     plt.rcParams["axes.unicode_minus"] = False
 
@@ -280,12 +264,12 @@ def generate_pdf_report(result, mode_name, pump_kw, flow_pct, hours, price, inv_
     )
     styles = getSampleStyleSheet()
     
-    # PDF 스타일에 볼드체 폰트와 레귤러 폰트 각각 적용
-    title_style = ParagraphStyle("PdfTitle", parent=styles["Heading1"], fontName=PDF_FONT_BOLD,
+    # PDF 스타일을 단일 고정 폰트(PDF_FONT)로 통일하여 매핑 에러 방지
+    title_style = ParagraphStyle("PdfTitle", parent=styles["Heading1"], fontName=PDF_FONT,
                                   fontSize=15, leading=19, textColor=colors.HexColor(COLOR_INK))
     normal_style = ParagraphStyle("PdfNormal", parent=styles["Normal"], fontName=PDF_FONT,
                                   fontSize=8.5, leading=12, textColor=colors.HexColor(COLOR_INK))
-    header_style = ParagraphStyle("PdfHeader", parent=styles["Normal"], fontName=PDF_FONT_BOLD,
+    header_style = ParagraphStyle("PdfHeader", parent=styles["Normal"], fontName=PDF_FONT,
                                   fontSize=8.5, leading=11, alignment=1, textColor=colors.white)
     cell_style = ParagraphStyle("PdfCell", parent=styles["Normal"], fontName=PDF_FONT,
                                 fontSize=8.5, leading=11, alignment=1, textColor=colors.HexColor(COLOR_INK))
