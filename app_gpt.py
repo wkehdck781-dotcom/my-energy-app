@@ -24,6 +24,7 @@ from reportlab.platypus import (
 # 1. 폰트 및 서버 환경 대응 설정 (한글 깨짐 방지)
 # =========================================================
 def setup_fonts():
+    # 1. 로컬에 폰트 파일이 있는 경우 우선 등록 시도
     font_path = os.path.join(os.path.dirname(__file__), "fonts", "NanumGothic.ttf")
     if os.path.exists(font_path):
         try:
@@ -36,30 +37,26 @@ def setup_fonts():
         except Exception:
             pass
 
+    # 2. 리눅스 서버(깃허브 등) 환경에서 시스템 나눔고딕 탐색 및 강제 지정
     if os.name == "posix":
-        plt.rcParams["font.family"] = "NanumGothic"
+        for candidate in ["NanumGothic", "Nanum Gothic", "DejaVu Sans"]:
+            try:
+                plt.rcParams["font.family"] = candidate
+                break
+            except Exception:
+                pass
     else:
         plt.rcParams["font.family"] = "Malgun Gothic"
 
     plt.rcParams["axes.unicode_minus"] = False
 
+    # 3. ReportLab PDF용 폰트 설정
     installed = {font.name: font.fname for font in fm.fontManager.ttflist}
-    selected_name, selected_path = None, None
-
-    for candidate in (
-        "Pretendard",
-        "Pretendard Variable",
-        "Malgun Gothic",
-        "AppleGothic",
-        "NanumGothic",
-        "Noto Sans KR",
-    ):
+    selected_path = None
+    for candidate in ("NanumGothic", "Nanum Gothic", "Malgun Gothic", "AppleGothic", "DejaVu Sans"):
         if candidate in installed:
-            selected_name, selected_path = candidate, installed[candidate]
+            selected_path = installed[candidate]
             break
-
-    if selected_name:
-        plt.rc("font", family=selected_name)
 
     if selected_path and selected_path.lower().endswith((".ttf", ".ttc")):
         try:
@@ -89,7 +86,7 @@ st.markdown(
     f"""
     <style>
     html, body, [class*="css"] {{
-        font-family: "Malgun Gothic", "Apple SD Gothic Neo", sans-serif;
+        font-family: "Malgun Gothic", "NanumGothic", sans-serif;
     }}
     .app-title {{
         font-size: 26px; font-weight: 750; color: {COLOR_INK}; margin-bottom: 4px;
@@ -248,20 +245,29 @@ def generate_figure(pump_kw, flow_pct, mode, nameplate_efficiency_pct, result):
         curve_inv.append(curve_result["P_inv_input"])
         curve_valve.append(curve_result["P_valve_input"])
 
-    fig, ax = plt.subplots(figsize=(9, 4), dpi=150)
-    ax.plot(flows, curve_valve, color="#64748B", label="Valve 제어", linewidth=2.2)
-    ax.plot(flows, curve_inv, color=COLOR_ACCENT, label="인버터 제어", linewidth=2.2)
-    ax.fill_between(flows, curve_inv, curve_valve, color="#86EFAC", alpha=0.28, label="절감 구간")
-    ax.scatter([flow_pct], [result["P_valve_input"]], color="#64748B", s=48, zorder=5)
-    ax.scatter([flow_pct], [result["P_inv_input"]], color=COLOR_ACCENT, s=48, zorder=5)
-    ax.axvline(x=flow_pct, color=COLOR_LINE, linestyle="--", linewidth=1.2)
-    ax.set_xlabel("유량 / 속도 (%)")
-    ax.set_ylabel("소비전력 (kW)")
-    ax.set_title("유량 변화에 따른 소비전력")
-    ax.grid(True, linestyle="--", alpha=0.3)
-    ax.legend()
+    fig, ax = plt.subplots(figsize=(10, 4.5), dpi=200)
+    
+    ax.plot(flows, curve_valve, color="#94A3B8", label="Valve Control (Valve 제어)", linewidth=2.5)
+    ax.plot(flows, curve_inv, color=COLOR_ACCENT, label="Inverter Control (인버터 제어)", linewidth=3.0)
+    ax.fill_between(flows, curve_inv, curve_valve, color="#38BDF8", alpha=0.2, label="Energy Saving Area (절감 구간)")
+    
+    ax.scatter([flow_pct], [result["P_valve_input"]], color="#64748B", s=60, zorder=5, edgecolors="white", linewidths=1.5)
+    ax.scatter([flow_pct], [result["P_inv_input"]], color=COLOR_ACCENT, s=70, zorder=5, edgecolors="white", linewidths=1.5)
+    ax.axvline(x=flow_pct, color="#CBD5E1", linestyle=":", linewidth=1.5)
+    
+    # 폰트 깨짐 방지를 위해 범례 및 레이블 명시적 지정
+    ax.set_xlabel("Flow / Speed Ratio (%)", fontsize=11, fontweight="bold", labelpad=8)
+    ax.set_ylabel("Power Consumption (kW)", fontsize=11, fontweight="bold", labelpad=8)
+    ax.set_title("Power Consumption by Flow Rate (유량 변화에 따른 소비전력)", fontsize=12, fontweight="bold", pad=12)
+    
+    ax.grid(True, linestyle="--", alpha=0.4, color="#E2E8F0")
+    ax.legend(frameon=True, facecolor="white", edgecolor="#E2E8F0", fontsize=9)
+    
     for spine in ("top", "right"):
         ax.spines[spine].set_visible(False)
+    for spine in ("left", "bottom"):
+        ax.spines[spine].set_color("#94A3B8")
+        
     plt.tight_layout()
     return fig
 
