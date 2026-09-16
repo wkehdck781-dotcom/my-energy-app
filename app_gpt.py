@@ -87,8 +87,7 @@ def setup_fonts():
             KOREAN_FONT.get_name()
         )
 
-        matplotlib.rcParams["font.family"] = [
-            matplotlib_font_name
+      
         ]
 
         matplotlib.rcParams[
