@@ -21,33 +21,34 @@ from reportlab.platypus import (
 
 
 # =========================================================
-# 1. 폰트 및 서버 환경 대응 설정 (PDF 폰트 매핑 오류 해결)
+# 1. 폰트 동적 감지 및 등록 (Regular 파일 기준 수정)
 # =========================================================
 def setup_fonts():
     font_dir = os.path.join(os.path.dirname(__file__), "fonts")
+    # 사용자가 다운로드한 실제 파일 이름(NanumGothic-Regular.ttf)으로 지정
+    reg_path = os.path.join(font_dir, "NanumGothic-Regular.ttf")
     
-    # 1. 맷플롯립(Matplotlib) 폰트 등록
-    for fname in ["NanumGothic.ttf", "NanumGothicBold.ttf", "NanumGothicExtraBold.ttf"]:
-        fpath = os.path.join(font_dir, fname)
-        if os.path.exists(fpath):
-            try:
-                fm.fontManager.addfont(fpath)
-            except Exception:
-                pass
+    matplotlib_font_name = "sans-serif"
+    pdf_font_name = "Helvetica"
 
-    plt.rcParams["font.family"] = "NanumGothic"
-    plt.rcParams["axes.unicode_minus"] = False
-
-    # 2. 리포트랩(PDF) 폰트 등록 (에러 방지를 위해 'NanumGothic' 단일 이름으로 깔끔하게 등록)
-    reg_path = os.path.join(font_dir, "NanumGothic.ttf")
     if os.path.exists(reg_path):
         try:
-            pdfmetrics.registerFont(TTFont("NanumGothic", reg_path))
-            return "NanumGothic"
-        except Exception:
-            pass
+            # 1. 맷플롯립용: 폰트 파일에서 실제 내부 이름을 추출
+            prop = fm.FontProperties(fname=reg_path)
+            matplotlib_font_name = prop.get_name()
+            fm.fontManager.addfont(reg_path)
             
-    return "Helvetica"
+            # 2. 리포트랩(PDF)용: TTFont 등록
+            pdfmetrics.registerFont(TTFont("NanumGothicCustom", reg_path))
+            pdf_font_name = "NanumGothicCustom"
+        except Exception as e:
+            print(f"폰트 로드 중 오류 발생: {e}")
+
+    # 맷플롯립 기본 폰트 적용
+    plt.rcParams["font.family"] = matplotlib_font_name
+    plt.rcParams["axes.unicode_minus"] = False
+
+    return pdf_font_name
 
 
 PDF_FONT = setup_fonts()
@@ -68,9 +69,6 @@ st.set_page_config(
 st.markdown(
     f"""
     <style>
-    html, body, [class*="css"] {{
-        font-family: "NanumGothic", "Malgun Gothic", sans-serif;
-    }}
     .app-title {{
         font-size: 26px; font-weight: 750; color: {COLOR_INK}; margin-bottom: 4px;
     }}
@@ -220,9 +218,6 @@ def fmt(value, digits=1):
 
 
 def generate_figure(pump_kw, flow_pct, mode, nameplate_efficiency_pct, result):
-    plt.rcParams["font.family"] = "NanumGothic"
-    plt.rcParams["axes.unicode_minus"] = False
-
     flows = np.linspace(N_MIN, N_MAX, 100)
     curve_inv, curve_valve = [], []
 
@@ -264,7 +259,6 @@ def generate_pdf_report(result, mode_name, pump_kw, flow_pct, hours, price, inv_
     )
     styles = getSampleStyleSheet()
     
-    # PDF 스타일을 단일 고정 폰트(PDF_FONT)로 통일하여 매핑 에러 방지
     title_style = ParagraphStyle("PdfTitle", parent=styles["Heading1"], fontName=PDF_FONT,
                                   fontSize=15, leading=19, textColor=colors.HexColor(COLOR_INK))
     normal_style = ParagraphStyle("PdfNormal", parent=styles["Normal"], fontName=PDF_FONT,
